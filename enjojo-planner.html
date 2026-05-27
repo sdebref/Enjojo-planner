@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enjojo Lodge · Booking Planner</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ── THEME VARIABLES ── */
+  :root {
+    --bg:         #0f0f0c;
+    --bg2:        #141410;
+    --bg3:        #13130d;
+    --panel-bg:   #15150e;
+    --input-bg:   #0f0f0c;
+    --border:     #2a2a20;
+    --border2:    #1a1a14;
+    --text:       #e8e0d0;
+    --text-muted: #666;
+    --text-dim:   #444;
+    --cell-line:  #141410;
+  }
+  body.light {
+    --bg:         #f5f0e8;
+    --bg2:        #ede8dc;
+    --bg3:        #e8e2d4;
+    --panel-bg:   #faf7f2;
+    --input-bg:   #ffffff;
+    --border:     #d4c9b0;
+    --border2:    #e0d8c8;
+    --text:       #2a2218;
+    --text-muted: #8a7a60;
+    --text-dim:   #b0a080;
+    --cell-line:  #ddd5c0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; transition: background 0.2s, color 0.2s; }
+
+  /* LOADING */
+  #loading-screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; gap: 16px; }
+  #loading-screen.hidden { display: none; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: #C8A95A; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 12px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--bg2); color: var(--text); padding: 10px 20px; border-radius: 6px; font-size: 12px; letter-spacing: 0.5px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200; border: 1px solid var(--border); }
+  #toast.show { opacity: 1; }
+  #toast.error { border-color: #B85C5C; color: #B85C5C; }
+
+  /* HEADER */
+  #header { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; border-bottom: 1px solid var(--border); background: var(--bg2); gap: 12px; flex-wrap: wrap; }
+  #logo-area { display: flex; align-items: center; gap: 12px; }
+  #logo-icon { font-size: 26px; }
+  #logo-title { font-size: 17px; font-weight: bold; letter-spacing: 1px; color: #C8A95A; }
+  #logo-sub { font-size: 10px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; }
+  #controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toggle-group { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .toggle-btn { background: transparent; border: none; color: var(--text-muted); padding: 5px 14px; cursor: pointer; font-size: 12px; font-family: Georgia, serif; }
+  .toggle-btn.active { background: var(--border); color: #C8A95A; }
+  .nav-controls { display: flex; gap: 6px; }
+  .nav-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: Georgia, serif; }
+  .nav-btn.today { border-color: #C8A95A44; color: #C8A95A; }
+  #add-btn { background: #C8A95A; color: #0f0f0c; border: none; padding: 7px 16px; border-radius: 4px; cursor: pointer; font-family: Georgia, serif; font-size: 13px; font-weight: bold; }
+  #sync-indicator { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+  #sync-indicator.syncing { color: #C8A95A; }
+  #sync-indicator.error { color: #B85C5C; }
+  #theme-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+
+  /* LEGEND */
+  #legend { display: flex; gap: 18px; padding: 7px 22px; border-bottom: 1px solid var(--border2); flex-wrap: wrap; align-items: center; background: var(--bg); }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 2px; }
+  .legend-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  #date-range { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+
+  /* GRID WRAPPER */
+  #grid-wrapper { overflow-x: auto; flex: 1; padding-bottom: 32px; }
+
+  /* UNASSIGNED SECTION */
+  #unassigned-section { background: var(--bg3); border-bottom: 2px solid var(--border); }
+  #unassigned-header-row { display: flex; align-items: center; }
+  #unassigned-title-cell { width: 140px; min-width: 140px; padding: 8px 10px; position: sticky; left: 0; background: var(--bg3); z-index: 2; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #C8A95A88; }
+  #unassigned-day-headers { display: flex; flex: 1; }
+  .unassigned-row { display: flex; align-items: stretch; border-top: 1px solid var(--border2); min-height: 34px; }
+  .unassigned-label { width: 140px; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 4px 10px; position: sticky; left: 0; background: var(--bg3); z-index: 1; }
+  .unassigned-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .unassigned-operator { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .unassigned-strip { display: flex; flex: 1; }
+  .unassigned-cell { flex: 1; min-width: 0; position: relative; height: 34px; overflow: visible; border-left: 1px solid var(--cell-line); }
+  .unassigned-block-label { position: absolute; top: 8px; left: 6px; font-size: 9px; font-weight: bold; white-space: nowrap; letter-spacing: 0.3px; pointer-events: none; z-index: 2; }
+  #unassigned-divider { display: flex; align-items: center; justify-content: center; padding: 5px 0; border-top: 1px solid var(--border); background: var(--bg3); font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; }
+
+  /* MAIN GRID */
+  #main-grid { display: grid; }
+  .room-label-header { position: sticky; left: 0; background: var(--bg); z-index: 3; }
+  .day-header { text-align: center; padding: 4px 1px; border-left: 1px solid var(--border2); font-size: 9px; color: var(--text-dim); }
+  .day-header.today { background: #C8A95A14; color: #C8A95A; }
+  .day-header.month-first { border-left: 2px solid var(--border); }
+  .day-num { font-size: 11px; font-weight: bold; }
+  .day-mon { font-size: 8px; color: var(--text-dim); }
+  .group-header { display: flex; align-items: center; gap: 7px; padding: 8px 10px 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); background: var(--bg); border-top: 2px solid var(--border2); }
+  .group-dot { width: 7px; height: 7px; border-radius: 2px; }
+  .room-label { position: sticky; left: 0; background: var(--bg); display: flex; align-items: center; padding: 2px 6px; z-index: 1; border-top: 1px solid var(--cell-line); min-height: 30px; }
+  .room-badge { font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; white-space: nowrap; }
+  .cell { height: 30px; border-left: 1px solid var(--cell-line); border-top: none; position: relative; overflow: hidden; cursor: default; }
+  .cell.today { background: #C8A95A07; }
+  .cell.booked { cursor: pointer; }
+  .booking-label { position: absolute; top: 7px; left: 5px; font-size: 9px; font-weight: bold; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 110px; pointer-events: none; letter-spacing: 0.3px; }
+  .cell.checkout-day { background: transparent !important; cursor: pointer; }
+
+  /* PANEL — sticky footer fix */
+  #overlay { display: none; position: fixed; inset: 0; background: #000000aa; z-index: 100; padding: 16px; align-items: flex-start; justify-content: flex-end; }
+  #overlay.open { display: flex; }
+  #panel { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; width: 490px; max-width: 100%; max-height: calc(100vh - 32px); overflow: hidden; box-shadow: 0 24px 70px #0009; display: flex; flex-direction: column; }
+  #panel-header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  #panel-title { font-size: 14px; color: #C8A95A; font-weight: normal; letter-spacing: 1px; flex: 1; min-width: 100px; }
+  #panel-scroll { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
+  .status-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 2px; }
+  .status-pill { padding: 4px 9px; border-radius: 20px; cursor: pointer; font-size: 10px; font-family: Georgia, serif; letter-spacing: 0.5px; }
+  .form-grid { display: grid; grid-template-columns: 110px 1fr; gap: 7px 10px; align-items: center; }
+  .form-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .form-input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 9px; font-size: 12px; font-family: Georgia, serif; width: 100%; }
+  .form-input:focus { outline: 1px solid #C8A95A55; }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border2); font-weight: bold; }
+  .room-type-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; margin-top: 6px; }
+  .room-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 2px; }
+  .room-pill { padding: 3px 9px; border-radius: 4px; font-size: 10px; font-family: Georgia, serif; letter-spacing: 0.5px; cursor: pointer; transition: all 0.12s; }
+  .room-pill.occupied { cursor: not-allowed; opacity: 0.4; }
+  #save-btn { background: #C8A95A; color: #0f0f0c; border: none; padding: 7px 16px; border-radius: 4px; cursor: pointer; font-family: Georgia, serif; font-size: 12px; font-weight: bold; }
+  #save-btn:disabled { opacity: 0.5; cursor: wait; }
+  #cancel-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 7px 12px; border-radius: 4px; cursor: pointer; font-family: Georgia, serif; font-size: 12px; }
+  #delete-btn { background: transparent; color: #B85C5C; border: 1px solid #B85C5C55; padding: 7px 12px; border-radius: 4px; cursor: pointer; font-family: Georgia, serif; font-size: 12px; display: none; }
+  #unassigned-warning { color: #B85C5C; margin-left: 8px; font-weight: normal; font-size: 10px; }
+  textarea.form-input { height: 64px; resize: vertical; }
+
+  /* ATTACHMENTS */
+  .att-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+  .att-item { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg3); border:1px solid var(--border2); border-radius:5px; }
+  .att-icon { font-size:16px; flex-shrink:0; }
+  .att-info { flex:1; min-width:0; }
+  .att-label { font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .att-url { font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .att-open { background:#C8A95A22; color:#C8A95A; border:1px solid #C8A95A44; padding:4px 10px; border-radius:3px; cursor:pointer; font-size:10px; font-family:Georgia,serif; white-space:nowrap; text-decoration:none; }
+  .att-remove { background:transparent; border:none; color:#B85C5C; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0; }
+  .att-add-form { border:1px solid var(--border); border-radius:5px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .att-type-row { display:flex; gap:5px; flex-wrap:wrap; }
+  .att-type-btn { padding:4px 10px; border-radius:20px; cursor:pointer; font-size:10px; font-family:Georgia,serif; border:1px solid var(--border); background:transparent; color:var(--text-muted); }
+  .att-type-btn.active { background:#C8A95A; color:#0f0f0c; border-color:#C8A95A; }
+  .att-add-btn { background:#2D6A4F; color:#fff; border:none; padding:7px 16px; border-radius:4px; cursor:pointer; font-family:Georgia,serif; font-size:12px; }
+
+  /* SETTINGS MODAL */
+  #settings-overlay { display:none; position:fixed; inset:0; background:#000000aa; z-index:200; padding:16px; align-items:flex-start; justify-content:center; }
+  #settings-overlay.open { display:flex; }
+  #settings-modal { background:var(--panel-bg); border:1px solid var(--border); border-radius:8px; width:640px; max-width:100%; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; box-shadow:0 24px 70px #0009; }
+  #settings-header { flex-shrink:0; display:flex; align-items:center; gap:8px; padding:14px 18px; border-bottom:1px solid var(--border); }
+  #settings-title { font-size:15px; color:#C8A95A; font-weight:normal; letter-spacing:1px; flex:1; }
+  #settings-scroll { flex:1; overflow-y:auto; padding:18px; -webkit-overflow-scrolling:touch; }
+  .room-card { border:1px solid var(--border); border-radius:6px; margin-bottom:10px; overflow:hidden; }
+  .room-card-header { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--bg3); cursor:pointer; }
+  .room-card-badge { font-size:10px; font-weight:bold; padding:2px 7px; border-radius:3px; }
+  .room-card-name { flex:1; font-size:13px; color:var(--text); }
+  .room-card-toggle { font-size:11px; color:var(--text-muted); }
+  .room-card-body { display:none; padding:14px; border-top:1px solid var(--border); }
+  .room-card-body.open { display:block; }
+  .room-form-grid { display:grid; grid-template-columns:100px 1fr; gap:7px 10px; align-items:center; margin-bottom:10px; }
+  .bed-row { display:flex; gap:6px; align-items:center; margin-bottom:5px; }
+  .bed-select { background:var(--input-bg); border:1px solid var(--border); border-radius:3px; color:var(--text); padding:4px 7px; font-size:11px; font-family:Georgia,serif; }
+  .bed-qty { width:50px; background:var(--input-bg); border:1px solid var(--border); border-radius:3px; color:var(--text); padding:4px 7px; font-size:11px; font-family:Georgia,serif; }
+  .add-bed-btn { background:transparent; border:1px solid var(--border); color:var(--text-muted); padding:3px 10px; border-radius:3px; cursor:pointer; font-size:11px; font-family:Georgia,serif; }
+  .remove-bed-btn { background:transparent; border:none; color:#B85C5C; cursor:pointer; font-size:14px; padding:0 4px; }
+  .save-room-btn { background:#C8A95A; color:#0f0f0c; border:none; padding:6px 16px; border-radius:4px; cursor:pointer; font-family:Georgia,serif; font-size:12px; font-weight:bold; margin-top:6px; }
+  .deactivate-btn { background:transparent; color:#B85C5C; border:1px solid #B85C5C44; padding:6px 12px; border-radius:4px; cursor:pointer; font-family:Georgia,serif; font-size:11px; margin-top:6px; }
+  #new-room-section { border:2px dashed var(--border); border-radius:6px; padding:14px; margin-top:6px; }
+
+  /* DATE RANGE PICKER */
+  .drp-wrapper { position: relative; }
+  .drp-input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 9px; font-size: 12px; font-family: Georgia, serif; width: 100%; cursor: pointer; text-align: left; }
+  .drp-input:focus { outline: 1px solid #C8A95A55; }
+  .drp-popup { display: none; position: absolute; left: 0; top: 36px; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 32px #0004; z-index: 300; padding: 14px; min-width: 300px; }
+  .drp-popup.open { display: block; }
+  .drp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .drp-nav-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); width: 28px; height: 28px; border-radius: 4px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .drp-month-label { font-size: 13px; color: var(--text); letter-spacing: 0.5px; }
+  .drp-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+  .drp-dow { text-align: center; font-size: 9px; color: var(--text-muted); text-transform: uppercase; padding: 2px 0 4px; letter-spacing: 1px; }
+  .drp-day { text-align: center; padding: 5px 2px; font-size: 11px; border-radius: 3px; cursor: pointer; color: var(--text); border: 1px solid transparent; }
+  .drp-day:hover { background: var(--border); }
+  .drp-day.other-month { color: var(--text-dim); }
+  .drp-day.today { border-color: #C8A95A55; color: #C8A95A; }
+  .drp-day.selected-start { background: #C8A95A; color: #0f0f0c; border-radius: 3px 0 0 3px; }
+  .drp-day.selected-end   { background: #C8A95A; color: #0f0f0c; border-radius: 0 3px 3px 0; }
+  .drp-day.in-range { background: #C8A95A22; border-radius: 0; }
+  .drp-day.selected-start.selected-end { border-radius: 3px; }
+  .drp-day.disabled { color: var(--text-dim); opacity: 0.4; cursor: default; }
+  .drp-hint { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 8px; letter-spacing: 0.5px; }
+
+  /* PRICING */
+  .price-section { display: flex; flex-direction: column; gap: 10px; }
+  .price-type-row { display: flex; gap: 6px; margin-bottom: 4px; }
+  .price-type-btn { flex: 1; padding: 7px; border-radius: 4px; cursor: pointer; font-family: Georgia, serif; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); }
+  .price-type-btn.active { background: #C8A95A; color: #0f0f0c; border-color: #C8A95A; }
+  .price-room-row { display: grid; grid-template-columns: 80px 1fr 1fr auto; gap: 6px; align-items: center; padding: 6px 8px; background: var(--bg3); border-radius: 4px; border: 1px solid var(--border2); }
+  .price-room-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .price-select { background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); padding: 4px 6px; font-size: 11px; font-family: Georgia, serif; width: 100%; }
+  .price-room-total { font-size: 11px; color: #C8A95A; text-align: right; white-space: nowrap; min-width: 60px; }
+  .price-children-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .price-result { background: var(--bg3); border: 1px solid #C8A95A44; border-radius: 6px; padding: 12px; }
+  .price-result-line { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .price-result-total { display: flex; justify-content: space-between; font-size: 15px; color: #C8A95A; font-weight: bold; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .price-apply-btn { background: #2D6A4F; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: Georgia, serif; font-size: 12px; width: 100%; margin-top: 4px; }
+
+  /* TABS */
+  .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; gap: 0; }
+  .tab-btn { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); padding: 8px 14px; cursor: pointer; font-family: Georgia, serif; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: -1px; transition: color 0.15s; }
+  .tab-btn.active { color: #C8A95A; border-bottom-color: #C8A95A; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: flex; flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading bookings…</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="logo-area">
+    <span id="logo-icon">🐘</span>
+    <div>
+      <div id="logo-title">Enjojo Lodge</div>
+      <div id="logo-sub">Booking Planner</div>
+    </div>
+  </div>
+  <div id="controls">
+    <div class="toggle-group">
+      <button class="toggle-btn active" id="btn-week" onclick="setViewMode('week')">Week</button>
+      <button class="toggle-btn" id="btn-month" onclick="setViewMode('month')">Month</button>
+    </div>
+    <div class="nav-controls">
+      <button class="nav-btn" id="btn-prev" onclick="navigate(-1)">←</button>
+      <button class="nav-btn today" onclick="goToday()">Today</button>
+      <button class="nav-btn" id="btn-next" onclick="navigate(1)">→</button>
+    </div>
+    <button id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark">🌙</button>
+    <span id="sync-indicator">● live</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button id="settings-btn" onclick="openSettings()" title="Manage rooms" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:7px 12px;border-radius:4px;cursor:pointer;font-size:15px;">⚙️</button>
+    <button id="add-btn" onclick="openNew()">+ New Booking</button>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div id="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#C8A95A"></div><span class="legend-label">Tentative</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7B9E87"></div><span class="legend-label">Block</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4A7FA5"></div><span class="legend-label">Confirmed</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2D6A4F"></div><span class="legend-label">Paid</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#666"></div><span class="legend-label">Released</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#B85C5C"></div><span class="legend-label">Cancelled</span></div>
+  <span id="date-range"></span>
+</div>
+
+<!-- GRID WRAPPER -->
+<div id="grid-wrapper">
+  <div id="unassigned-section">
+    <div id="unassigned-header-row">
+      <div id="unassigned-title-cell">⚠ Unassigned</div>
+      <div id="unassigned-day-headers"></div>
+    </div>
+    <div id="unassigned-rows"></div>
+    <div id="unassigned-divider">Room Assignments ↓</div>
+  </div>
+  <div id="main-grid"></div>
+</div>
+
+<!-- BOOKING PANEL -->
+<div id="overlay" onclick="closePanel(event)">
+  <div id="panel" onclick="event.stopPropagation()">
+    <div id="panel-header">
+      <span id="panel-title">Booking</span>
+      <button id="delete-btn" onclick="deleteBooking()">🗑 Delete</button>
+      <button id="cancel-btn" onclick="closePanel()">Cancel</button>
+      <button id="save-btn" onclick="saveBooking()">Save</button>
+    </div>
+
+    <!-- scrollable body -->
+    <div id="panel-scroll">
+      <div class="status-row" id="status-row"></div>
+
+      <!-- TAB BAR -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('booking')">Booking</button>
+        <button class="tab-btn" onclick="switchTab('rooms')">Rooms</button>
+        <button class="tab-btn" onclick="switchTab('finance')">Finance</button>
+        <button class="tab-btn" onclick="switchTab('notes')">Notes</button>
+        <button class="tab-btn" onclick="switchTab('attachments')">Attachments</button>
+      </div>
+
+      <!-- TAB: BOOKING -->
+      <div class="tab-pane active" id="tab-booking">
+        <div class="form-grid">
+          <label class="form-label">Tour Operator</label>
+          <input class="form-input" id="f-operator" placeholder="e.g. Princess Safaris">
+          <label class="form-label">Reference</label>
+          <input class="form-input" id="f-ref" placeholder="e.g. Muchomo Group">
+          <label class="form-label">Dates</label>
+          <div class="drp-wrapper" style="grid-column:2;">
+            <button type="button" class="drp-input" id="drp-display" onclick="drpToggle()">Select dates…</button>
+            <div class="drp-popup" id="drp-popup">
+              <div class="drp-nav">
+                <button class="drp-nav-btn" onclick="drpPrevMonth()">‹</button>
+                <span class="drp-month-label" id="drp-month-label"></span>
+                <button class="drp-nav-btn" onclick="drpNextMonth()">›</button>
+              </div>
+              <div class="drp-grid" id="drp-grid"></div>
+              <div class="drp-hint" id="drp-hint">Tap check-in date</div>
+            </div>
+          </div>
+          <!-- hidden inputs for compatibility -->
+          <input type="hidden" id="f-checkin">
+          <input type="hidden" id="f-checkout">
+          <label class="form-label">Nights</label>
+          <div class="form-input" id="f-nights" style="color:var(--text-muted);background:transparent;border-color:transparent;">—</div>
+          <label class="form-label">Pax</label>
+          <input class="form-input" id="f-pax" type="number" min="1">
+          <label class="form-label">Board</label>
+          <select class="form-input" id="f-board">
+            <option>BB</option><option>HB</option><option>FB</option><option>SC</option>
+          </select>
+          <label class="form-label">Guide / Driver</label>
+          <input class="form-input" id="f-guide" placeholder="Name + tel.">
+          <label class="form-label">Arrival time</label>
+          <input class="form-input" id="f-arrival" type="time">
+        </div>
+      </div>
+
+      <!-- TAB: ROOMS -->
+      <div class="tab-pane" id="tab-rooms">
+        <div class="section-title" style="border:none;padding:0;margin:0;">Room Assignment <span id="unassigned-warning"></span></div>
+        <div id="room-assignment"></div>
+      </div>
+
+      <!-- TAB: FINANCE -->
+      <div class="tab-pane" id="tab-finance">
+
+        <!-- RATE TYPE -->
+        <div class="price-type-row">
+          <button class="price-type-btn active" id="pt-rack" onclick="setPriceType('rack')">Rack (Particulier)</button>
+          <button class="price-type-btn" id="pt-to" onclick="setPriceType('to')">Tour Operator</button>
+        </div>
+
+        <!-- QUOTE LINES -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 4px;">
+          <span class="section-title" style="border:none;padding:0;margin:0;">Quote</span>
+          <button onclick="addQuoteLine()" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;font-size:11px;">+ Room</button>
+        </div>
+        <div id="quote-lines"></div>
+
+        <!-- CHILDREN & BOARD OVERRIDE -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+          <div>
+            <label class="form-label">Board</label>
+            <select class="form-input" id="pc-board-override" oninput="calcPrice()" style="margin-top:3px;">
+              <option value="HB" selected>HB</option>
+              <option value="BB">BB</option>
+              <option value="FB">FB</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Nights</label>
+            <div class="form-input" id="f-nights-fin" style="color:var(--text-muted);background:transparent;border-color:transparent;margin-top:3px;">—</div>
+          </div>
+        </div>
+
+        <!-- RESULT -->
+        <div class="price-result" id="price-result" style="display:none;margin-top:8px;"></div>
+        <button class="price-apply-btn" onclick="applyPrice()">Apply total to invoice →</button>
+
+        <div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>
+
+        <!-- INVOICE FIELDS -->
+        <div class="section-title" style="border:none;padding:0;margin:0 0 8px;">Invoice</div>
+        <div class="form-grid">
+          <label class="form-label">PF Invoice #</label>
+          <input class="form-input" id="f-invoice" placeholder="e.g. 6042">
+          <label class="form-label">Invoice Date</label>
+          <input class="form-input" id="f-invoice-date" type="date">
+          <label class="form-label">Total (USD)</label>
+          <input class="form-input" id="f-amount" type="number" placeholder="e.g. 1760" oninput="updateBalance()">
+          <label class="form-label">Deposit (USD)</label>
+          <input class="form-input" id="f-deposit" type="number" placeholder="e.g. 440" oninput="updateBalance()">
+          <label class="form-label">Deposit paid</label>
+          <input class="form-input" id="f-deposit-date" type="date">
+          <label class="form-label">Balance (USD)</label>
+          <div class="form-input" id="f-balance" style="color:var(--text-muted);background:transparent;border-color:transparent;">—</div>
+          <label class="form-label">Balance paid</label>
+          <input class="form-input" id="f-balance-date" type="date">
+        </div>
+      </div>
+
+      <!-- TAB: NOTES -->
+      <div class="tab-pane" id="tab-notes">
+        <label class="form-label">General notes</label>
+        <textarea class="form-input" id="f-notes" placeholder="Dietary requirements, special requests…" style="height:120px;"></textarea>
+        <label class="form-label" style="margin-top:6px;">Internal notes</label>
+        <textarea class="form-input" id="f-internal-notes" placeholder="Internal remarks, not shared with operator…" style="height:80px;"></textarea>
+      </div>
+
+      <!-- TAB: ATTACHMENTS -->
+      <div class="tab-pane" id="tab-attachments">
+        <!-- existing attachments -->
+        <div id="att-list" class="att-list"></div>
+
+        <!-- add new -->
+        <div class="att-add-form">
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Add link</div>
+          <div class="att-type-row" id="att-type-row">
+            <button class="att-type-btn active" onclick="setAttType('gmail')">📧 Gmail</button>
+            <button class="att-type-btn" onclick="setAttType('drive')">📁 Drive</button>
+            <button class="att-type-btn" onclick="setAttType('rooming')">📋 Rooming list</button>
+            <button class="att-type-btn" onclick="setAttType('other')">🔗 Other</button>
+          </div>
+          <input class="form-input" id="att-label-input" placeholder="Label (e.g. Rooming list June)">
+          <input class="form-input" id="att-url-input" placeholder="Paste URL here…">
+          <button class="att-add-btn" onclick="addAttachment()">Add</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:8px;">
+          Tip: copy Gmail thread URL via ⋮ → Copy link to this email
+        </div>
+      </div>
+
+    </div>
+
+
+  </div>
+</div>
+
+<script>
+// ── SUPABASE ──────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://swukzbqgokcfyvflvazh.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3dWt6YnFnb2tjZnl2Zmx2YXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MjcyMzIsImV4cCI6MjA5NTMwMzIzMn0.d-u8kGgUiVkvCB_dKL0z5_F_NJnEBgMuS8hibQNJ6Bs";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const ROOMS = [
+  { id:"tc1", label:"TC 1", type:"thatched", name:"Thatched Cottage 1 · Jungle" },
+  { id:"tc2", label:"TC 2", type:"thatched", name:"Thatched Cottage 2 · Jungle" },
+  { id:"tc3", label:"TC 3", type:"thatched", name:"Thatched Cottage 3 · Jungle" },
+  { id:"tc4", label:"TC 4", type:"thatched", name:"Thatched Cottage 4 · Jungle" },
+  { id:"tc5", label:"TC 5", type:"thatched", name:"Thatched Cottage 5 · Savanna" },
+  { id:"tc6", label:"TC 6", type:"thatched", name:"Thatched Cottage 6 · Savanna" },
+  { id:"tc7", label:"TC 7", type:"thatched", name:"Thatched Cottage 7 · Savanna" },
+  { id:"sh1", label:"SH A", type:"safari",   name:"Safari House · Room A" },
+  { id:"sh2", label:"SH B", type:"safari",   name:"Safari House · Room B" },
+  { id:"fc1", label:"FC 1", type:"forest",   name:"Forest Cottage 1" },
+  { id:"fc2", label:"FC 2", type:"forest",   name:"Forest Cottage 2" },
+  { id:"fc3", label:"FC 3", type:"forest",   name:"Forest Cottage 3" },
+  { id:"st1", label:"ST 1", type:"tent",     name:"Safari Tent 1" },
+  { id:"st2", label:"ST 2", type:"tent",     name:"Safari Tent 2" },
+  { id:"st3", label:"ST 3", type:"tent",     name:"Safari Tent 3" },
+  { id:"st4", label:"ST 4", type:"tent",     name:"Safari Tent 4" },
+];
+const ROOM_GROUPS = [
+  { type:"thatched", label:"Thatched Cottages" },
+  { type:"safari",   label:"Safari House" },
+  { type:"forest",   label:"Forest Cottages" },
+  { type:"tent",     label:"Safari Tents" },
+];
+const STATUS = {
+  tentative: { label:"Tentative", color:"#C8A95A", bg:"rgba(200,169,90,0.13)",  border:"#C8A95A" },
+  block:     { label:"Block",     color:"#7B9E87", bg:"rgba(123,158,135,0.13)", border:"#7B9E87" },
+  confirmed: { label:"Confirmed", color:"#4A7FA5", bg:"rgba(74,127,165,0.13)",  border:"#4A7FA5" },
+  paid:      { label:"Paid",      color:"#2D6A4F", bg:"rgba(45,106,79,0.13)",   border:"#2D6A4F" },
+  released:  { label:"Released",  color:"#888",    bg:"rgba(136,136,136,0.07)", border:"#888" },
+  cancelled: { label:"Cancelled", color:"#B85C5C", bg:"rgba(184,92,92,0.08)",   border:"#B85C5C" },
+};
+const TYPE_COLORS = { thatched:"#C8A95A", safari:"#7B9E87", forest:"#4A7FA5", tent:"#A67C6B" };
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let bookings   = [];
+let ROOMS_ALL  = []; // includes inactive rooms
+let viewMode   = "week";
+let viewStart  = addDays(isoToday(), -3);
+let selectedId = null;
+let formRooms  = [];
+let formStatus = "tentative";
+let darkMode   = true;
+
+// ── THEME ─────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  darkMode = !darkMode;
+  document.body.classList.toggle("light", !darkMode);
+  document.getElementById("theme-btn").textContent = darkMode ? "🌙" : "☀️";
+}
+
+// ── DB HELPERS ────────────────────────────────────────────────────────────────
+function fromDb(row) {
+  return {
+    id:            row.id,
+    operator:      row.operator      || "",
+    ref:           row.ref           || "",
+    status:        row.status        || "tentative",
+    pax:           row.pax           || 1,
+    board:         row.board         || "HB",
+    notes:         row.notes         || "",
+    rooms:         row.rooms         || [],
+    checkIn:       row.check_in      || "",
+    checkOut:      row.check_out     || "",
+    pfInvoice:     row.pf_invoice    || null,
+    amount:        row.amount        || null,
+    guide:         row.guide         || null,
+    arrival:       row.arrival       || null,
+    invoiceDate:   row.invoice_date  || null,
+    deposit:       row.deposit       || null,
+    depositDate:   row.deposit_date  || null,
+    balanceDate:   row.balance_date  || null,
+    internalNotes: row.internal_notes|| null,
+    attachments:   row.attachments   || [],
+  };
+}
+function toDb(b) {
+  return {
+    id:             b.id,
+    operator:       b.operator,
+    ref:            b.ref,
+    status:         b.status,
+    pax:            b.pax,
+    board:          b.board,
+    notes:          b.notes,
+    rooms:          b.rooms,
+    check_in:       b.checkIn  || null,
+    check_out:      b.checkOut || null,
+    pf_invoice:     b.pfInvoice    || null,
+    amount:         b.amount       || null,
+    guide:          b.guide        || null,
+    arrival:        b.arrival      || null,
+    invoice_date:   b.invoiceDate  || null,
+    deposit:        b.deposit      || null,
+    deposit_date:   b.depositDate  || null,
+    balance_date:   b.balanceDate  || null,
+    internal_notes: b.internalNotes|| null,
+    attachments:    b.attachments  || [],
+  };
+}
+async function loadBookings() {
+  setSyncing(true);
+
+  // Load all rooms from Supabase (active + inactive)
+  const { data: roomData, error: roomError } = await sb.from("rooms")
+    .select("*").order("sort_order");
+  if (!roomError && roomData && roomData.length > 0) {
+    ROOMS.length = 0; ROOMS_ALL.length = 0;
+    roomData.forEach(r => {
+      const room = {
+        id: r.id, label: r.label, type: r.type,
+        side: r.side, name: r.name,
+        max_occupancy: r.max_occupancy, notes: r.notes,
+        active: r.active, sort_order: r.sort_order, beds: [],
+      };
+      ROOMS_ALL.push(room);
+      if (r.active !== false) ROOMS.push(room);
+    });
+  }
+
+  // Load bed configurations
+  await loadRoomBeds();
+
+  // Load bookings
+  const { data, error } = await sb.from("bookings").select("*").order("check_in");
+  if (error) { showToast("Error loading bookings", true); setSyncing(false); return; }
+  bookings = data.map(fromDb);
+  setSyncing(false);
+  render();
+  hideLoading();
+}
+async function upsertBooking(b) {
+  setSyncing(true);
+  const { error } = await sb.from("bookings").upsert(toDb(b));
+  if (error) { showToast("Save failed: " + error.message, true); setSyncing(false); return false; }
+  setSyncing(false); showToast("Booking saved ✓"); return true;
+}
+async function removeBooking(id) {
+  setSyncing(true);
+  const { error } = await sb.from("bookings").delete().eq("id", id);
+  if (error) { showToast("Delete failed: " + error.message, true); setSyncing(false); return false; }
+  setSyncing(false); showToast("Booking deleted"); return true;
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────────
+function setSyncing(on) {
+  const el = document.getElementById("sync-indicator");
+  el.textContent = on ? "● syncing…" : "● live";
+  el.className   = on ? "syncing" : "";
+}
+function hideLoading() { document.getElementById("loading-screen").classList.add("hidden"); }
+let toastTimer;
+function showToast(msg, isError) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "show" + (isError ? " error" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ""; }, 2500);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function addDays(dateStr, n) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+function isoToday() { return new Date().toISOString().slice(0,10); }
+function fmtShort(dateStr) {
+  return new Date(dateStr).toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
+}
+function getDays() {
+  const n = viewMode === "week" ? 7 : 45;
+  return Array.from({length:n},(_,i) => addDays(viewStart,i));
+}
+function bookingForCell(roomId, day) {
+  return bookings.find(b =>
+    b.rooms && b.rooms.length > 0 && b.rooms.includes(roomId) &&
+    b.checkIn && b.checkOut &&
+    day >= b.checkIn && day < b.checkOut
+  );
+}
+// Fix: check-out day is available for new check-in (use strict < on checkOut)
+function isRoomAvailable(roomId, checkIn, checkOut, excludeId) {
+  if (!checkIn || !checkOut) return true;
+  return !bookings.some(b => {
+    if (b.id === excludeId) return false;
+    if (!b.rooms || !b.rooms.includes(roomId)) return false;
+    if (!b.checkIn || !b.checkOut) return false;
+    return b.checkIn < checkOut && b.checkOut > checkIn;
+  });
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render() {
+  const days  = getDays();
+  const today = isoToday();
+  const DAYS  = days.length;
+  const LABEL_W = 140;
+  const COL_W   = viewMode === "week" ? "minmax(60px,1fr)" : "minmax(26px,1fr)";
+
+  document.getElementById("date-range").textContent = fmtShort(days[0]) + " – " + fmtShort(days[DAYS-1]);
+  document.getElementById("btn-prev").textContent = "← 7d";
+  document.getElementById("btn-next").textContent = "7d →";
+  document.getElementById("btn-week").classList.toggle("active", viewMode==="week");
+  document.getElementById("btn-month").classList.toggle("active", viewMode==="month");
+
+  // UNASSIGNED
+  const unassigned = bookings.filter(b => b.rooms.length === 0);
+  document.getElementById("unassigned-section").style.display = unassigned.length ? "block" : "none";
+
+  const uDayHeaders = document.getElementById("unassigned-day-headers");
+  uDayHeaders.style.cssText = "display:flex;flex:1;";
+  uDayHeaders.innerHTML = "";
+  days.forEach(d => {
+    const date = new Date(d);
+    const div  = document.createElement("div");
+    div.className = "day-header"+(d===today?" today":"")+(date.getDate()===1?" month-first":"");
+    div.style.flex = "1";
+    div.innerHTML = `<div class="day-num">${date.getDate()}</div><div class="day-mon">${date.toLocaleDateString("en-GB",{month:"short"}).toUpperCase()}</div>`;
+    uDayHeaders.appendChild(div);
+  });
+
+  const uRows = document.getElementById("unassigned-rows");
+  uRows.innerHTML = "";
+  unassigned.forEach(b => {
+    const st = STATUS[b.status];
+    const row = document.createElement("div"); row.className = "unassigned-row";
+    const lbl = document.createElement("div");
+    lbl.className = "unassigned-label";
+    lbl.style.cssText = `width:${LABEL_W}px;min-width:${LABEL_W}px`;
+    lbl.innerHTML = `<span class="unassigned-dot" style="background:${st.color}"></span><span class="unassigned-operator">${b.operator}</span>`;
+    row.appendChild(lbl);
+    const strip = document.createElement("div"); strip.className = "unassigned-strip";
+    days.forEach((day,i) => {
+      const inRange = b.checkIn && b.checkOut && day >= b.checkIn && day < b.checkOut;
+      const isFirst = day === b.checkIn || (i===0 && inRange);
+      const cell    = document.createElement("div"); cell.className = "unassigned-cell";
+      if (inRange) {
+        cell.style.background = st.bg; cell.style.borderTop = `2px solid ${st.border}`; cell.style.cursor = "pointer";
+        cell.addEventListener("click", () => openEdit(b));
+      }
+      if (isFirst && inRange) {
+        cell.style.borderLeft = `3px solid ${st.border}`; cell.style.borderRadius = "4px 0 0 4px";
+        const lbl2 = document.createElement("div"); lbl2.className = "unassigned-block-label"; lbl2.style.color = st.color;
+        lbl2.textContent = `${b.ref} · ${b.pax}pax · ${fmtShort(b.checkIn)}–${fmtShort(b.checkOut)}`;
+        cell.appendChild(lbl2);
+      }
+      strip.appendChild(cell);
+    });
+    row.appendChild(strip); uRows.appendChild(row);
+  });
+
+  // MAIN GRID
+  const grid = document.getElementById("main-grid");
+  grid.style.gridTemplateColumns = `${LABEL_W}px repeat(${DAYS},${COL_W})`;
+  grid.style.minWidth = viewMode==="week" ? "500px" : "1300px";
+  grid.innerHTML = "";
+
+  const corner = document.createElement("div"); corner.className = "room-label-header"; grid.appendChild(corner);
+  days.forEach(d => {
+    const date = new Date(d);
+    const div  = document.createElement("div");
+    div.className = "day-header"+(d===today?" today":"")+(date.getDate()===1?" month-first":"");
+    div.innerHTML = viewMode==="week"
+      ? `<div class="day-num">${date.getDate()}</div><div class="day-mon">${date.toLocaleDateString("en-GB",{weekday:"short"})}</div>`
+      : `<div class="day-num">${date.getDate()}</div><div class="day-mon">${date.toLocaleDateString("en-GB",{month:"short"}).toUpperCase()}</div>`;
+    grid.appendChild(div);
+  });
+
+  ROOM_GROUPS.forEach(group => {
+    const groupRooms = ROOMS.filter(r => r.type===group.type);
+    const tc = TYPE_COLORS[group.type];
+    const gh = document.createElement("div"); gh.className = "group-header";
+    gh.style.gridColumn = `1 / span ${DAYS+1}`;
+    gh.innerHTML = `<div class="group-dot" style="background:${tc}"></div>${group.label}`;
+    grid.appendChild(gh);
+
+    groupRooms.forEach(room => {
+      const rl = document.createElement("div"); rl.className = "room-label";
+      rl.innerHTML = `<span class="room-badge" style="background:${tc}22;color:${tc}">${room.label}</span>`;
+      grid.appendChild(rl);
+
+      days.forEach(day => {
+        const bk         = bookingForCell(room.id, day);
+        const bkCheckout = bookings.find(b => b.rooms.includes(room.id) && b.checkOut === day);
+        const st         = bk ? STATUS[bk.status] : null;
+        const stCo       = bkCheckout ? STATUS[bkCheckout.status] : null;
+        const isCheckin  = bk && bk.checkIn === day;
+        const cell       = document.createElement("div");
+        cell.className   = "cell" + (day===today?" today":"") + (bk||bkCheckout?" booked":"");
+
+        // SVG triangle — uses same bg color as full cells (fill + solid color border)
+        function svgTri(points, bgColor, borderColor, diagLine) {
+          const s = document.createElementNS("http://www.w3.org/2000/svg","svg");
+          s.setAttribute("width","100%"); s.setAttribute("height","100%");
+          s.style.cssText = "position:absolute;inset:0;pointer-events:none;";
+          s.setAttribute("preserveAspectRatio","none");
+          s.setAttribute("viewBox","0 0 100 100");
+          const p = document.createElementNS("http://www.w3.org/2000/svg","polygon");
+          p.setAttribute("points", points);
+          p.setAttribute("fill", bgColor);
+          p.setAttribute("fill-opacity", "1");
+          p.setAttribute("stroke", borderColor);
+          p.setAttribute("stroke-width", "0");
+          s.appendChild(p);
+          if (diagLine) {
+            const l = document.createElementNS("http://www.w3.org/2000/svg","line");
+            l.setAttribute("x1","0"); l.setAttribute("y1","0");
+            l.setAttribute("x2","100"); l.setAttribute("y2","100");
+            l.setAttribute("stroke", borderColor);
+            l.setAttribute("stroke-width","1.5");
+            l.setAttribute("stroke-opacity","0.4");
+            s.appendChild(l);
+          }
+          return s;
+        }
+
+        if (bk && bkCheckout && isCheckin) {
+          // Same day: left=checkout triangle, right=checkin triangle
+          cell.style.borderTop = `2px solid ${st.border}`;
+          cell.appendChild(svgTri("0,0 0,100 100,100", stCo.bg, stCo.border, true));
+          cell.appendChild(svgTri("0,0 100,0 100,100", st.bg,   st.border,   false));
+          cell.title = bkCheckout.operator+" checks out / "+bk.operator+" checks in";
+          cell.addEventListener("click", () => openEdit(bk));
+
+        } else if (bk && isCheckin) {
+          // Check-in: right triangle only, same bg as mid-stay cells
+          cell.style.borderTop = `2px solid ${st.border}`;
+          cell.appendChild(svgTri("0,0 100,0 100,100", st.bg, st.border, true));
+          const lbl = document.createElement("div");
+          lbl.className = "booking-label"; lbl.style.color = st.color; lbl.textContent = bk.operator;
+          cell.appendChild(lbl);
+          cell.title = bk.operator+" — "+bk.ref;
+          cell.addEventListener("click", () => openEdit(bk));
+
+        } else if (bk) {
+          // Normal mid-stay
+          cell.style.background = st.bg;
+          cell.style.borderTop  = `2px solid ${st.border}`;
+          cell.title = bk.operator+" — "+bk.ref;
+          cell.addEventListener("click", () => openEdit(bk));
+
+        } else if (bkCheckout) {
+          // Checkout: left triangle only, no top border
+          cell.appendChild(svgTri("0,0 0,100 100,100", stCo.bg, stCo.border, true));
+          cell.title = bkCheckout.operator+" checks out · available for new check-in";
+          cell.addEventListener("click", () => openEdit(bkCheckout));
+        }
+
+        grid.appendChild(cell);
+      });
+    });
+  });
+}
+
+// ── PANEL ─────────────────────────────────────────────────────────────────────
+function openEdit(b) {
+  selectedId = b.id; formStatus = b.status; formRooms = [...b.rooms];
+  document.getElementById("panel-title").textContent = "Edit Booking";
+  document.getElementById("delete-btn").style.display = "inline-block"; // show delete for existing
+  document.getElementById("f-operator").value = b.operator||"";
+  document.getElementById("f-ref").value      = b.ref||"";
+  document.getElementById("f-checkin").value  = b.checkIn||"";
+  document.getElementById("f-checkout").value = b.checkOut||"";
+  drpInit(b.checkIn, b.checkOut);
+  drpSetDisplay(b.checkIn, b.checkOut);
+  document.getElementById("f-pax").value      = b.pax||2;
+  document.getElementById("f-board").value    = b.board||"HB";
+  document.getElementById("f-invoice").value  = b.pfInvoice||"";
+  document.getElementById("f-amount").value   = b.amount||"";
+  document.getElementById("f-notes").value    = b.notes||"";
+  formAttachments = b.attachments ? JSON.parse(JSON.stringify(b.attachments)) : [];
+  document.getElementById("f-guide").value         = b.guide        || "";
+  document.getElementById("f-arrival").value        = b.arrival      || "";
+  document.getElementById("f-invoice-date").value   = b.invoiceDate  || "";
+  document.getElementById("f-deposit").value        = b.deposit      || "";
+  document.getElementById("f-deposit-date").value   = b.depositDate  || "";
+  document.getElementById("f-balance-date").value   = b.balanceDate  || "";
+  document.getElementById("f-internal-notes").value = b.internalNotes|| "";
+  switchTab("booking");
+  updateNights();
+  updateBalance();
+  renderPanel();
+  document.getElementById("overlay").classList.add("open");
+  document.getElementById("panel-scroll").scrollTop = 0;
+}
+function openNew() {
+  selectedId = null; formStatus = "tentative"; formRooms = [];
+  document.getElementById("panel-title").textContent = "New Booking";
+  document.getElementById("delete-btn").style.display = "none";
+  document.getElementById("f-operator").value = "";
+  document.getElementById("f-ref").value      = "";
+  document.getElementById("f-checkin").value  = viewStart;
+  document.getElementById("f-checkout").value = addDays(viewStart,2);
+  drpInit(viewStart, addDays(viewStart,2));
+  drpSetDisplay(viewStart, addDays(viewStart,2));
+  document.getElementById("f-pax").value      = 2;
+  document.getElementById("f-board").value    = "HB";
+  document.getElementById("f-invoice").value  = "";
+  document.getElementById("f-amount").value   = "";
+  document.getElementById("f-notes").value    = "";
+  formAttachments = [];
+  document.getElementById("f-guide").value          = "";
+  document.getElementById("f-arrival").value         = "";
+  document.getElementById("f-invoice-date").value    = "";
+  document.getElementById("f-deposit").value         = "";
+  document.getElementById("f-deposit-date").value    = "";
+  document.getElementById("f-balance-date").value    = "";
+  document.getElementById("f-internal-notes").value  = "";
+  switchTab("booking");
+  updateNights();
+  updateBalance();
+  renderPanel();
+  document.getElementById("overlay").classList.add("open");
+  document.getElementById("panel-scroll").scrollTop = 0;
+}
+function renderPanel() {
+  const sr = document.getElementById("status-row"); sr.innerHTML = "";
+  Object.entries(STATUS).forEach(([k,v]) => {
+    const btn = document.createElement("button"); btn.className = "status-pill"; btn.textContent = v.label;
+    btn.style.border = `1px solid ${v.color}`;
+    if (formStatus===k) { btn.style.background=v.color; btn.style.color="#0f0f0c"; }
+    else                { btn.style.background="transparent"; btn.style.color=v.color; }
+    btn.onclick = () => { formStatus=k; renderPanel(); };
+    sr.appendChild(btn);
+  });
+
+  const checkIn  = document.getElementById("f-checkin").value;
+  const checkOut = document.getElementById("f-checkout").value;
+  const ra = document.getElementById("room-assignment"); ra.innerHTML = "";
+  ROOM_GROUPS.forEach(group => {
+    const groupRooms = ROOMS.filter(r => r.type===group.type);
+    const tc = TYPE_COLORS[group.type];
+    const gl = document.createElement("div"); gl.className = "room-type-label"; gl.style.color = tc; gl.textContent = group.label;
+    ra.appendChild(gl);
+    const rg = document.createElement("div"); rg.className = "room-grid";
+    groupRooms.forEach(room => {
+      const avail  = isRoomAvailable(room.id, checkIn, checkOut, selectedId);
+      const picked = formRooms.includes(room.id);
+      const btn    = document.createElement("button");
+      btn.className = "room-pill"+(!avail&&!picked?" occupied":"");
+      btn.title     = room.name+(!avail&&!picked?" (occupied)":"");
+      btn.textContent = room.label+(!avail&&!picked?" ✕":"");
+      if (picked)     { btn.style.cssText=`background:${tc};color:#0f0f0c;border:1px solid ${tc}`; }
+      else if (avail) { btn.style.cssText=`background:${tc}18;color:${tc};border:1px solid ${tc}55`; }
+      else            { btn.style.cssText=`background:transparent;color:#555;border:1px solid #333`; }
+      if (avail||picked) {
+        btn.onclick = () => {
+          if (formRooms.includes(room.id)) formRooms=formRooms.filter(r=>r!==room.id);
+          else formRooms.push(room.id);
+          renderPanel();
+        };
+      }
+      rg.appendChild(btn);
+    });
+    ra.appendChild(rg);
+  });
+  document.getElementById("unassigned-warning").textContent =
+    formRooms.length===0 ? "· no rooms yet — will appear in Unassigned" : "";
+}
+
+async function saveBooking() {
+  const btn = document.getElementById("save-btn"); btn.disabled = true; btn.textContent = "Saving…";
+  const b = {
+    id:            selectedId || ("b_"+Date.now()),
+    operator:      document.getElementById("f-operator").value,
+    ref:           document.getElementById("f-ref").value,
+    status:        formStatus,
+    pax:           +document.getElementById("f-pax").value||1,
+    board:         document.getElementById("f-board").value,
+    notes:         document.getElementById("f-notes").value,
+    rooms:         [...formRooms],
+    checkIn:       document.getElementById("f-checkin").value,
+    checkOut:      document.getElementById("f-checkout").value,
+    pfInvoice:     document.getElementById("f-invoice").value||null,
+    amount:        +document.getElementById("f-amount").value||null,
+    guide:         document.getElementById("f-guide").value||null,
+    arrival:       document.getElementById("f-arrival").value||null,
+    invoiceDate:   document.getElementById("f-invoice-date").value||null,
+    deposit:       +document.getElementById("f-deposit").value||null,
+    depositDate:   document.getElementById("f-deposit-date").value||null,
+    balanceDate:   document.getElementById("f-balance-date").value||null,
+    internalNotes: document.getElementById("f-internal-notes").value||null,
+    attachments:   formAttachments.length > 0 ? JSON.parse(JSON.stringify(formAttachments)) : [],
+  };
+  const ok = await upsertBooking(b);
+  btn.disabled = false; btn.textContent = "Save";
+  if (!ok) return;
+  if (selectedId) bookings = bookings.map(x => x.id===selectedId ? b : x);
+  else bookings.push(b);
+  closePanel(); render();
+}
+async function deleteBooking() {
+  if (!selectedId || !confirm("Delete this booking?")) return;
+  const ok = await removeBooking(selectedId);
+  if (!ok) return;
+  bookings = bookings.filter(b => b.id!==selectedId);
+  closePanel(); render();
+}
+function closePanel(e) {
+  if (e && e.target!==document.getElementById("overlay")) return;
+  document.getElementById("overlay").classList.remove("open");
+  selectedId = null;
+}
+
+document.getElementById("f-checkin").addEventListener("change", () => { renderPanel(); updateNights(); });
+document.getElementById("f-checkout").addEventListener("change", () => { renderPanel(); updateNights(); });
+document.getElementById("f-amount").addEventListener("input", updateBalance);
+document.getElementById("f-deposit").addEventListener("input", updateBalance);
+
+// ── DATE RANGE PICKER ────────────────────────────────────────────────────────
+let drpYear, drpMonth, drpStart, drpEnd, drpSelecting;
+
+function drpInit(startVal, endVal) {
+  const ref = startVal ? new Date(startVal) : new Date();
+  drpYear  = ref.getFullYear();
+  drpMonth = ref.getMonth();
+  drpStart = startVal || null;
+  drpEnd   = endVal   || null;
+  drpSelecting = drpStart ? (drpEnd ? "done" : "end") : "start";
+  drpRender();
+}
+
+function drpToggle() {
+  const popup = document.getElementById("drp-popup");
+  popup.classList.toggle("open");
+  if (popup.classList.contains("open")) drpRender();
+}
+
+function drpClose() {
+  document.getElementById("drp-popup").classList.remove("open");
+}
+
+function drpPrevMonth() { drpMonth--; if (drpMonth<0){drpMonth=11;drpYear--;} drpRender(); }
+function drpNextMonth() { drpMonth++; if (drpMonth>11){drpMonth=0;drpYear++;} drpRender(); }
+
+function drpRender() {
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("drp-month-label").textContent = months[drpMonth]+" "+drpYear;
+
+  const grid = document.getElementById("drp-grid");
+  grid.innerHTML = "";
+  ["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(d => {
+    const el = document.createElement("div"); el.className="drp-dow"; el.textContent=d; grid.appendChild(el);
+  });
+
+  const today = isoToday();
+  const firstDay = new Date(drpYear, drpMonth, 1);
+  // Monday-based: 0=Mon...6=Sun
+  let startDow = (firstDay.getDay()+6)%7;
+  const daysInMonth = new Date(drpYear, drpMonth+1, 0).getDate();
+  const daysInPrev  = new Date(drpYear, drpMonth, 0).getDate();
+
+  for (let i=0; i<startDow; i++) {
+    const d = daysInPrev - startDow + 1 + i;
+    const el = document.createElement("div"); el.className="drp-day other-month"; el.textContent=d; grid.appendChild(el);
+  }
+  for (let d=1; d<=daysInMonth; d++) {
+    const iso = drpYear+"-"+String(drpMonth+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+    const el  = document.createElement("div"); el.className="drp-day"; el.textContent=d;
+    if (iso===today) el.classList.add("today");
+    if (iso===drpStart) el.classList.add("selected-start");
+    if (iso===drpEnd)   el.classList.add("selected-end");
+    if (drpStart && drpEnd && iso>drpStart && iso<drpEnd) el.classList.add("in-range");
+    el.onclick = () => drpSelectDay(iso);
+    grid.appendChild(el);
+  }
+  // fill remaining
+  const total = startDow + daysInMonth;
+  const rem = total%7 === 0 ? 0 : 7-(total%7);
+  for (let d=1; d<=rem; d++) {
+    const el = document.createElement("div"); el.className="drp-day other-month"; el.textContent=d; grid.appendChild(el);
+  }
+
+  // hint
+  const hint = document.getElementById("drp-hint");
+  if (!drpStart)              hint.textContent = "Tap check-in date";
+  else if (!drpEnd)           hint.textContent = "Tap check-out date";
+  else                        hint.textContent = fmtShort(drpStart)+" → "+fmtShort(drpEnd);
+}
+
+function drpSelectDay(iso) {
+  if (!drpStart || drpEnd) {
+    // Start new selection
+    drpStart = iso; drpEnd = null;
+  } else {
+    // Second tap = end
+    if (iso <= drpStart) { drpStart = iso; drpEnd = null; }
+    else { drpEnd = iso; drpApply(); drpClose(); return; }
+  }
+  drpRender();
+}
+
+function drpApply() {
+  document.getElementById("f-checkin").value  = drpStart || "";
+  document.getElementById("f-checkout").value = drpEnd   || "";
+  const display = document.getElementById("drp-display");
+  if (drpStart && drpEnd) display.textContent = fmtShort(drpStart)+" → "+fmtShort(drpEnd);
+  else display.textContent = "Select dates…";
+  updateNights();
+  renderPanel(); // refresh room availability
+}
+
+function drpSetDisplay(ci, co) {
+  const display = document.getElementById("drp-display");
+  if (display) display.textContent = (ci && co) ? fmtShort(ci)+" → "+fmtShort(co) : "Select dates…";
+}
+
+// Close picker when clicking outside
+document.addEventListener("click", e => {
+  const popup = document.getElementById("drp-popup");
+  if (popup && popup.classList.contains("open")) {
+    if (!e.target.closest(".drp-wrapper")) drpClose();
+  }
+});
+
+// ── PRICING ───────────────────────────────────────────────────────────────────
+
+const RACK = {
+  thatched: { dbl:{BB:150,HB:170,FB:180}, sgl:{BB:170,HB:190,FB:200} },
+  forest:   { dbl:{BB:100,HB:120,FB:130}, sgl:{BB:120,HB:140,FB:150} },
+  tent:     { dbl:{BB:90, HB:110,FB:120}, sgl:{BB:110,HB:130,FB:140} },
+  safari:   { dbl:{BB:150,HB:170,FB:180}, sgl:{BB:170,HB:190,FB:200} },
+};
+const TO = {
+  thatched: { dbl:{HB:70,FB:90},  sgl:{HB:90,FB:100} },
+  forest:   { dbl:{HB:63,FB:69},  sgl:{HB:74,FB:80}  },
+  tent:     { dbl:{HB:55,FB:65},  sgl:{HB:65,FB:75}  },
+  safari:   { dbl:{HB:70,FB:90},  sgl:{HB:90,FB:100} },
+};
+
+const ROOM_TYPE_LABELS = {
+  thatched: "Thatched Cottage",
+  forest:   "Forest Cottage",
+  tent:     "Safari Tent",
+  safari:   "Safari House",
+};
+
+function roomTypeKey(roomId) {
+  if (roomId.startsWith("tc")) return "thatched";
+  if (roomId.startsWith("sh")) return "safari";
+  if (roomId.startsWith("fc")) return "forest";
+  if (roomId.startsWith("st")) return "tent";
+  return "thatched";
+}
+
+let priceType  = "rack";
+let quoteLines = []; // [{type, adults, children}]
+
+function setPriceType(t) {
+  priceType = t;
+  document.getElementById("pt-rack").classList.toggle("active", t==="rack");
+  document.getElementById("pt-to").classList.toggle("active",   t==="to");
+  // If TO selected and board is BB, switch to HB
+  const bo = document.getElementById("pc-board-override");
+  if (bo && t==="to" && bo.value==="BB") bo.value="HB";
+  renderQuoteLines();
+  calcPrice();
+}
+
+function addQuoteLine() {
+  quoteLines.push({ type:"thatched", adults:2, children:0 });
+  renderQuoteLines();
+  calcPrice();
+}
+
+function removeQuoteLine(i) {
+  quoteLines.splice(i,1);
+  renderQuoteLines();
+  calcPrice();
+}
+
+function renderQuoteLines() {
+  const list = document.getElementById("quote-lines");
+  if (!list) return;
+  list.innerHTML = "";
+
+  if (quoteLines.length === 0) {
+    list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px 0 2px;">No rooms added yet. Click + Room to start.</div>';
+    return;
+  }
+
+  const types = ["thatched","forest","tent","safari"];
+  const boardOpts = priceType==="rack" ? ["BB","HB","FB"] : ["HB","FB"];
+
+  quoteLines.forEach((line, i) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:grid;grid-template-columns:1fr 60px 60px 28px;gap:5px;align-items:center;padding:7px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--border2);margin-bottom:4px;";
+    row.innerHTML = `
+      <select class="price-select" onchange="quoteLines[${i}].type=this.value;calcPrice();">
+        ${types.map(t=>`<option value="${t}" ${t===line.type?"selected":""}>${ROOM_TYPE_LABELS[t]}</option>`).join("")}
+      </select>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:8px;color:var(--text-muted);text-transform:uppercase;min-width:14px;">Ad</span>
+          <select class="price-select" style="flex:1;" onchange="quoteLines[${i}].adults=+this.value;calcPrice();">
+            ${[0,1,2,3,4].map(n=>`<option ${n===line.adults?"selected":""}>${n}</option>`).join("")}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:8px;color:var(--text-muted);text-transform:uppercase;min-width:14px;">Ch</span>
+          <select class="price-select" style="flex:1;" onchange="quoteLines[${i}].children=+this.value;calcPrice();">
+            ${[0,1,2,3].map(n=>`<option ${n===line.children?"selected":""}>${n}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <span id="ql-total-${i}" style="font-size:11px;color:#C8A95A;text-align:right;">—</span>
+      <button onclick="removeQuoteLine(${i})" style="background:transparent;border:none;color:#B85C5C;cursor:pointer;font-size:14px;padding:0;">×</button>`;
+    list.appendChild(row);
+  });
+}
+
+function calcPrice() {
+  const ci = document.getElementById("f-checkin")?.value;
+  const co = document.getElementById("f-checkout")?.value;
+  const nights = (ci && co) ? Math.round((new Date(co)-new Date(ci))/86400000) : 0;
+  const board  = document.getElementById("pc-board-override")?.value || "HB";
+  const rates_set = priceType==="rack" ? RACK : TO;
+
+  // Update nights display
+  const nEl = document.getElementById("f-nights-fin");
+  if (nEl) nEl.textContent = nights > 0 ? nights+(nights===1?" night":" nights") : "—";
+
+  let grandTotal = 0;
+  let lines = [];
+
+  quoteLines.forEach((line, i) => {
+    const typeKey = line.type;
+    const occKey  = line.adults <= 1 && line.children === 0 ? "sgl" : "dbl";
+    const rates   = rates_set[typeKey][occKey];
+    const b       = rates[board] ? board : Object.keys(rates)[0];
+    const ppn     = rates[b] || 0;
+
+    const adultTotal = ppn * line.adults * nights;
+    // children at 50% of RACK DBL rate
+    const rackB    = RACK[typeKey]["dbl"][b] ? b : "HB";
+    const childPPN = RACK[typeKey]["dbl"][rackB] * 0.5;
+    const childTotal = childPPN * line.children * nights;
+    const roomTotal  = adultTotal + childTotal;
+    grandTotal += roomTotal;
+
+    const el = document.getElementById("ql-total-"+i);
+    if (el) el.textContent = roomTotal>0 ? "USD "+roomTotal : "—";
+
+    if (line.adults>0||line.children>0) {
+      lines.push({ type: ROOM_TYPE_LABELS[typeKey], occKey, board:b, adults:line.adults, children:line.children, ppn, childPPN, nights, adultTotal, childTotal, roomTotal });
+    }
+  });
+
+  const result = document.getElementById("price-result");
+  if (!result) return;
+
+  if (nights===0 || grandTotal===0 || quoteLines.length===0) { result.style.display="none"; return; }
+  result.style.display = "block";
+  result.innerHTML = `
+    ${lines.map(l=>`
+      <div class="price-result-line"><span>${l.type} · ${l.occKey==="sgl"?"SGL":"DBL/TWN"} · ${l.board}</span></div>
+      ${l.adults>0?`<div class="price-result-line" style="padding-left:10px;font-size:10px;"><span>${l.adults} adult${l.adults>1?"s":""} × USD ${l.ppn} × ${l.nights}n</span><span>USD ${l.adultTotal}</span></div>`:""}
+      ${l.children>0?`<div class="price-result-line" style="padding-left:10px;font-size:10px;"><span>${l.children} child × USD ${l.childPPN} × ${l.nights}n (50%)</span><span>USD ${l.childTotal}</span></div>`:""}
+    `).join("")}
+    <div class="price-result-total"><span>Total · ${nights} night${nights>1?"s":""}</span><span>USD ${grandTotal}</span></div>`;
+  result._total = grandTotal;
+}
+
+function applyPrice() {
+  const result = document.getElementById("price-result");
+  if (!result || !result._total) return;
+  document.getElementById("f-amount").value = result._total;
+  updateBalance();
+  showToast("Price applied to invoice ✓");
+}
+
+// ── ATTACHMENTS ──────────────────────────────────────────────────────────────
+
+let formAttachments = []; // [{type, label, url}]
+let attType = "gmail";
+
+const ATT_ICONS = { gmail:"📧", drive:"📁", rooming:"📋", other:"🔗" };
+const ATT_LABELS = { gmail:"Gmail thread", drive:"Google Drive", rooming:"Rooming list", other:"Link" };
+
+function setAttType(t) {
+  attType = t;
+  document.querySelectorAll(".att-type-btn").forEach((b,i) => {
+    b.classList.toggle("active", ["gmail","drive","rooming","other"][i] === t);
+  });
+  // set placeholder label
+  const li = document.getElementById("att-label-input");
+  if (li && !li.value) li.placeholder = "Label (e.g. "+ATT_LABELS[t]+" June)";
+}
+
+function renderAttachments() {
+  const list = document.getElementById("att-list");
+  if (!list) return;
+  list.innerHTML = "";
+  if (formAttachments.length === 0) {
+    list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:4px 0 8px;">No attachments yet.</div>';
+    return;
+  }
+  formAttachments.forEach((att, i) => {
+    const item = document.createElement("div");
+    item.className = "att-item";
+    item.innerHTML = `
+      <span class="att-icon">${ATT_ICONS[att.type]||"🔗"}</span>
+      <div class="att-info">
+        <div class="att-label">${att.label || ATT_LABELS[att.type]}</div>
+        <div class="att-url">${att.url}</div>
+      </div>
+      <a class="att-open" href="${att.url}" target="_blank" rel="noopener">Open ↗</a>
+      <button class="att-remove" onclick="removeAttachment(${i})" title="Remove">×</button>`;
+    list.appendChild(item);
+  });
+}
+
+function addAttachment() {
+  const label = document.getElementById("att-label-input").value.trim();
+  const url   = document.getElementById("att-url-input").value.trim();
+  if (!url) { showToast("Please paste a URL first", true); return; }
+  formAttachments.push({ type: attType, label: label || ATT_LABELS[attType], url });
+  document.getElementById("att-label-input").value = "";
+  document.getElementById("att-url-input").value   = "";
+  renderAttachments();
+}
+
+function removeAttachment(i) {
+  formAttachments.splice(i,1);
+  renderAttachments();
+}
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach((b,i) => {
+    const names = ["booking","rooms","finance","notes","attachments"];
+    b.classList.toggle("active", names[i] === name);
+  });
+  document.querySelectorAll(".tab-pane").forEach(p => {
+    p.classList.toggle("active", p.id === "tab-"+name);
+  });
+  if (name === "rooms") renderPanel();
+  if (name === "finance") { renderQuoteLines(); calcPrice(); }
+  if (name === "attachments") { renderAttachments(); }
+}
+
+function updateNights() {
+  const ci = document.getElementById("f-checkin").value;
+  const co = document.getElementById("f-checkout").value;
+  const el = document.getElementById("f-nights");
+  if (ci && co && el) {
+    const n = Math.round((new Date(co)-new Date(ci))/86400000);
+    el.textContent = n > 0 ? n + (n===1?" night":" nights") : "—";
+  }
+}
+
+function updateBalance() {
+  const total   = +document.getElementById("f-amount").value || 0;
+  const deposit = +document.getElementById("f-deposit").value || 0;
+  const el = document.getElementById("f-balance");
+  if (el) el.textContent = total > 0 ? "USD " + (total - deposit).toLocaleString() : "—";
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function setViewMode(m) { viewMode=m; render(); }
+function navigate(dir)  { viewStart=addDays(viewStart, dir*7); render(); }
+function goToday()      { viewStart=addDays(isoToday(),-3); render(); }
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadBookings();
+</script>
+<!-- SETTINGS MODAL -->
+<div id="settings-overlay" onclick="closeSettings(event)">
+  <div id="settings-modal" onclick="event.stopPropagation()">
+    <div id="settings-header">
+      <span id="settings-title">⚙️ Room Management</span>
+      <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:4px 8px;" onclick="closeSettings()">✕</button>
+    </div>
+    <div id="settings-scroll">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Active rooms</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text-muted);">
+          <input type="checkbox" id="show-inactive" onchange="renderRoomsList()" style="cursor:pointer;">
+          Show deactivated
+        </label>
+      </div>
+      <div id="rooms-list"></div>
+      <!-- ADD NEW ROOM -->
+      <div id="new-room-section">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">+ Add New Room</div>
+        <div class="room-form-grid">
+          <label class="form-label">Label</label>
+          <input class="form-input" id="nr-label" placeholder="e.g. TC 8">
+          <label class="form-label">Full name</label>
+          <input class="form-input" id="nr-name" placeholder="e.g. Thatched Cottage 8 · Jungle">
+          <label class="form-label">Type</label>
+          <select class="form-input" id="nr-type">
+            <option value="thatched">Thatched Cottage</option>
+            <option value="forest">Forest Cottage</option>
+            <option value="tent">Safari Tent</option>
+            <option value="safari">Safari House</option>
+          </select>
+          <label class="form-label">Side</label>
+          <select class="form-input" id="nr-side">
+            <option value="">—</option>
+            <option value="jungle">Jungle</option>
+            <option value="savanna">Savanna</option>
+          </select>
+          <label class="form-label">Max pax</label>
+          <input class="form-input" id="nr-maxpax" type="number" min="1" max="8" value="4">
+          <label class="form-label">Notes</label>
+          <input class="form-input" id="nr-notes" placeholder="e.g. Close to restaurant, best view…">
+        </div>
+        <button onclick="addNewRoom()" style="background:#C8A95A;color:#0f0f0c;border:none;padding:8px 18px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;font-size:12px;font-weight:bold;">Add Room</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+
+async function openSettings() {
+  document.getElementById("settings-overlay").classList.add("open");
+  renderRoomsList();
+}
+
+function closeSettings(e) {
+  if (e && e.target !== document.getElementById("settings-overlay")) return;
+  document.getElementById("settings-overlay").classList.remove("open");
+}
+
+function renderRoomsList() {
+  const list = document.getElementById("rooms-list");
+  list.innerHTML = "";
+  const showInactive = document.getElementById("show-inactive")?.checked;
+  const groups = [
+    { type:"thatched", label:"Thatched Cottages" },
+    { type:"safari",   label:"Safari House" },
+    { type:"forest",   label:"Forest Cottages" },
+    { type:"tent",     label:"Safari Tents" },
+  ];
+  groups.forEach(group => {
+    const groupRooms = showInactive
+      ? ROOMS_ALL.filter(r => r.type===group.type)
+      : ROOMS.filter(r => r.type===group.type && r.active!==false);
+    if (groupRooms.length === 0) return;
+    const gh = document.createElement("div");
+    gh.style.cssText = "font-size:9px;text-transform:uppercase;letter-spacing:2px;color:"+TYPE_COLORS[group.type]+";margin:12px 0 6px;";
+    gh.textContent = group.label;
+    list.appendChild(gh);
+    groupRooms.forEach(room => {
+      list.appendChild(buildRoomCard(room, showInactive));
+    });
+  });
+}
+
+function buildRoomCard(room, showInactive) {
+  const inactive = room.active === false;
+  const tc = inactive ? "#666" : (TYPE_COLORS[room.type] || "#888");
+  const card = document.createElement("div");
+  card.className = "room-card";
+  card.id = "room-card-"+room.id;
+
+  const bedsHtml = (room.beds||[]).map((b,i) =>
+    `<div class="bed-row">
+      <select class="bed-select" id="bed-type-${room.id}-${i}">
+        ${["King","Queen","Double","Twin","Single","Bunk"].map(t=>`<option ${t===b.type?"selected":""}>${t}</option>`).join("")}
+      </select>
+      <input class="bed-qty" type="number" min="1" max="4" value="${b.quantity||1}" id="bed-qty-${room.id}-${i}">
+      <span style="font-size:9px;color:var(--text-muted);">bed(s)</span>
+      <button class="remove-bed-btn" onclick="removeBed('${room.id}',${i})">×</button>
+    </div>`
+  ).join("");
+
+  card.innerHTML = `
+    <div class="room-card-header" onclick="toggleCard('${room.id}')" style="${inactive?'opacity:0.5':''}">
+      <span class="room-card-badge" style="background:${tc}22;color:${tc};">${room.label}</span>
+      <span class="room-card-name">${room.name||room.label}</span>
+      ${inactive?'<span style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:1px;">Inactive</span>':""}
+      <span class="room-card-toggle" id="toggle-${room.id}">▸</span>
+    </div>
+    <div class="room-card-body" id="body-${room.id}">
+      <div class="room-form-grid">
+        <label class="form-label">Label</label>
+        <input class="form-input" id="rf-label-${room.id}" value="${room.label||""}">
+        <label class="form-label">Full name</label>
+        <input class="form-input" id="rf-name-${room.id}" value="${room.name||""}">
+        <label class="form-label">Side</label>
+        <select class="form-input" id="rf-side-${room.id}">
+          <option value="" ${!room.side?"selected":""}>—</option>
+          <option value="jungle" ${room.side==="jungle"?"selected":""}>Jungle</option>
+          <option value="savanna" ${room.side==="savanna"?"selected":""}>Savanna</option>
+        </select>
+        <label class="form-label">Max pax</label>
+        <input class="form-input" id="rf-maxpax-${room.id}" type="number" min="1" max="8" value="${room.max_occupancy||4}">
+        <label class="form-label">Notes</label>
+        <input class="form-input" id="rf-notes-${room.id}" value="${room.notes||""}" placeholder="Close to restaurant, best view…">
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Bed Configuration</div>
+      <div id="beds-${room.id}">${bedsHtml}</div>
+      <button class="add-bed-btn" onclick="addBed('${room.id}')">+ Add bed</button>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button class="save-room-btn" onclick="saveRoom('${room.id}')">Save</button>
+        ${inactive
+          ? `<button class="save-room-btn" style="background:#2D6A4F;" onclick="reactivateRoom('${room.id}')">Reactivate</button>`
+          : `<button class="deactivate-btn" onclick="deactivateRoom('${room.id}')">Deactivate</button>`
+        }
+      </div>
+    </div>`;
+  return card;
+}
+
+function toggleCard(roomId) {
+  const body   = document.getElementById("body-"+roomId);
+  const toggle = document.getElementById("toggle-"+roomId);
+  const open   = body.classList.toggle("open");
+  toggle.textContent = open ? "▾" : "▸";
+}
+
+function addBed(roomId) {
+  const room = ROOMS.find(r => r.id===roomId);
+  if (!room.beds) room.beds = [];
+  room.beds.push({ type:"Double", quantity:1 });
+  document.getElementById("room-card-"+roomId).replaceWith(buildRoomCard(room));
+  toggleCard(roomId);
+  document.getElementById("body-"+roomId).classList.add("open");
+  document.getElementById("toggle-"+roomId).textContent = "▾";
+}
+
+function removeBed(roomId, idx) {
+  const room = ROOMS.find(r => r.id===roomId);
+  room.beds.splice(idx,1);
+  document.getElementById("room-card-"+roomId).replaceWith(buildRoomCard(room));
+  document.getElementById("body-"+roomId).classList.add("open");
+  document.getElementById("toggle-"+roomId).textContent = "▾";
+}
+
+async function saveRoom(roomId) {
+  const room = ROOMS.find(r => r.id===roomId);
+  room.label         = document.getElementById("rf-label-"+roomId).value;
+  room.name          = document.getElementById("rf-name-"+roomId).value;
+  room.side          = document.getElementById("rf-side-"+roomId).value || null;
+  room.max_occupancy = +document.getElementById("rf-maxpax-"+roomId).value;
+  room.notes         = document.getElementById("rf-notes-"+roomId).value || null;
+
+  // collect beds from DOM
+  const bedsDiv = document.getElementById("beds-"+roomId);
+  const bedRows = bedsDiv.querySelectorAll(".bed-row");
+  room.beds = Array.from(bedRows).map((_,i) => ({
+    type:     document.getElementById("bed-type-"+roomId+"-"+i)?.value || "Double",
+    quantity: +document.getElementById("bed-qty-"+roomId+"-"+i)?.value || 1,
+  }));
+
+  // Save to Supabase
+  setSyncing(true);
+  const { error } = await sb.from("rooms").upsert({
+    id: room.id, label: room.label, type: room.type,
+    side: room.side, name: room.name,
+    max_occupancy: room.max_occupancy, notes: room.notes,
+    active: true, sort_order: room.sort_order||0,
+  });
+  if (error) { showToast("Save failed: "+error.message, true); setSyncing(false); return; }
+
+  // Save beds
+  await sb.from("room_beds").delete().eq("room_id", roomId);
+  if (room.beds.length > 0) {
+    await sb.from("room_beds").insert(room.beds.map(b=>({room_id:roomId, bed_type:b.type, quantity:b.quantity})));
+  }
+  setSyncing(false);
+  showToast("Room saved ✓");
+  render();
+}
+
+async function deactivateRoom(roomId) {
+  if (!confirm("Deactivate this room? It will no longer appear in the planner.")) return;
+  const { error } = await sb.from("rooms").update({ active:false }).eq("id", roomId);
+  if (error) { showToast("Error: "+error.message, true); return; }
+  const room = ROOMS.find(r => r.id===roomId);
+  if (room) room.active = false;
+  ROOMS.splice(ROOMS.findIndex(r=>r.id===roomId), 1);
+  showToast("Room deactivated");
+  renderRoomsList();
+  render();
+}
+
+async function reactivateRoom(roomId) {
+  const { error } = await sb.from("rooms").update({ active:true }).eq("id", roomId);
+  if (error) { showToast("Error: "+error.message, true); return; }
+  // Move from ROOMS_ALL back to ROOMS
+  const room = ROOMS_ALL.find(r => r.id===roomId);
+  if (room) { room.active = true; ROOMS.push(room); }
+  showToast("Room reactivated ✓");
+  renderRoomsList();
+  render();
+}
+
+async function addNewRoom() {
+  const label = document.getElementById("nr-label").value.trim();
+  const name  = document.getElementById("nr-name").value.trim();
+  const type  = document.getElementById("nr-type").value;
+  const side  = document.getElementById("nr-side").value || null;
+  const maxp  = +document.getElementById("nr-maxpax").value || 4;
+  const notes = document.getElementById("nr-notes").value.trim() || null;
+  if (!label) { showToast("Label is required", true); return; }
+
+  const id = type.slice(0,2) + "_" + Date.now();
+  const newRoom = { id, label, type, side, name:name||label, max_occupancy:maxp, notes, active:true, sort_order:ROOMS.length+1, beds:[] };
+
+  setSyncing(true);
+  const { error } = await sb.from("rooms").insert({
+    id, label, type, side, name:name||label,
+    max_occupancy:maxp, notes, active:true, sort_order:ROOMS.length+1,
+  });
+  if (error) { showToast("Error: "+error.message, true); setSyncing(false); return; }
+  setSyncing(false);
+
+  ROOMS.push(newRoom);
+  // Reset form
+  ["nr-label","nr-name","nr-notes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("nr-maxpax").value = 4;
+  showToast("Room added ✓");
+  renderRoomsList();
+  render();
+}
+
+// Load beds from Supabase on startup
+async function loadRoomBeds() {
+  const { data, error } = await sb.from("room_beds").select("*");
+  if (error || !data) return;
+  data.forEach(bed => {
+    const room = ROOMS.find(r => r.id===bed.room_id);
+    if (room) {
+      if (!room.beds) room.beds = [];
+      room.beds.push({ type: bed.bed_type, quantity: bed.quantity });
+    }
+  });
+}
+</script>
+
+</body>
+</html>
