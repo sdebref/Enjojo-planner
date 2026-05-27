@@ -1,7 +1,10 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!-- v3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Enjojo Lodge · Booking Planner</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -565,6 +568,7 @@ function toDb(b) {
   };
 }
 async function loadBookings() {
+  try {
   setSyncing(true);
 
   // Load all rooms from Supabase (active + inactive)
@@ -594,6 +598,11 @@ async function loadBookings() {
   setSyncing(false);
   render();
   hideLoading();
+  } catch(err) {
+    console.error("loadBookings error:", err);
+    showToast("Error: " + err.message, true);
+    hideLoading();
+  }
 }
 async function upsertBooking(b) {
   setSyncing(true);
