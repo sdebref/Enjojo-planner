@@ -540,6 +540,8 @@ function fromDb(row) {
     balanceDate:   row.balance_date  || null,
     internalNotes: row.internal_notes|| null,
     attachments:   row.attachments   || [],
+    quoteLines:    row.quote_lines   || [],
+    quoteType:     row.quote_type    || "rack",
   };
 }
 function toDb(b) {
@@ -564,6 +566,8 @@ function toDb(b) {
     balance_date:   b.balanceDate  || null,
     internal_notes: b.internalNotes|| null,
     attachments:    b.attachments  || [],
+    quote_lines:    quoteLines     || [],
+    quote_type:     priceType      || "rack",
   };
 }
 async function loadBookings() {
@@ -849,12 +853,16 @@ function openEdit(b) {
   document.getElementById("f-deposit-date").value   = b.depositDate  || "";
   document.getElementById("f-balance-date").value   = b.balanceDate  || "";
   document.getElementById("f-internal-notes").value = b.internalNotes|| "";
+  // Load saved quote lines
+  quoteLines = b.quoteLines ? JSON.parse(JSON.stringify(b.quoteLines)) : [];
+  priceType  = b.quoteType  || "rack";
   switchTab("booking");
   updateNights();
   updateBalance();
   renderPanel();
   document.getElementById("overlay").classList.add("open");
   document.getElementById("panel-scroll").scrollTop = 0;
+  setTimeout(() => renderPanel(), 50);
 }
 function openNew() {
   selectedId = null; formStatus = "tentative"; formRooms = [];
@@ -872,6 +880,8 @@ function openNew() {
   document.getElementById("f-amount").value   = "";
   document.getElementById("f-notes").value    = "";
   formAttachments = [];
+  quoteLines = [];
+  priceType  = "rack";
   document.getElementById("f-guide").value          = "";
   document.getElementById("f-arrival").value         = "";
   document.getElementById("f-invoice-date").value    = "";
@@ -1410,7 +1420,7 @@ loadBookings();
 <script>
 // ── INVOICE ───────────────────────────────────────────────────────────────────
 
-const LOGO_B64 = document.getElementById("logo-b64-data").src;
+function getLogo() { const el = document.getElementById("logo-b64-data"); return el ? el.src : ""; }
 
 function getNextInvoiceNumber() {
   // Format: INV-2026-0001
@@ -1543,7 +1553,7 @@ function generateInvoice() {
 <body>
   <div class="header">
     <div>
-      <img src="${LOGO_B64}" class="logo" alt="Enjojo Lodge">
+      <img src="${getLogo()}" class="logo" alt="Enjojo Lodge">
       <div class="company" style="margin-top:10px;">
         Enjojo Lodges Ltd<br>
         P.O. Box 8035, Kampala<br>
