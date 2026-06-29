@@ -247,7 +247,7 @@
     <span id="logo-icon">🐘</span>
     <div>
       <div id="logo-title">Enjojo Lodge</div>
-      <div id="logo-sub">Booking Planner</div>
+      <div id="logo-sub">Booking Planner · v4</div>
     </div>
   </div>
   <div id="controls">
@@ -598,6 +598,7 @@ async function loadBookings() {
   const { data, error } = await sb.from("bookings").select("*").order("check_in");
   if (error) { showToast("Error loading bookings", true); setSyncing(false); return; }
   bookings = data.map(fromDb);
+  console.log("Sample booking quoteLines:", bookings[0]?.quoteLines);
   setSyncing(false);
   render();
   hideLoading();
@@ -854,7 +855,9 @@ function openEdit(b) {
   document.getElementById("f-balance-date").value   = b.balanceDate  || "";
   document.getElementById("f-internal-notes").value = b.internalNotes|| "";
   // Load saved quote lines
+  console.log("openEdit quoteLines from b:", b.quoteLines);
   quoteLines = b.quoteLines ? JSON.parse(JSON.stringify(b.quoteLines)) : [];
+  console.log("quoteLines set to:", quoteLines);
   priceType  = b.quoteType  || "rack";
   switchTab("booking");
   updateNights();
@@ -1621,8 +1624,10 @@ function generateInvoice() {
 </body>
 </html>`;
 
-  const frame = document.getElementById("invoice-frame");
-  frame.srcdoc = invoiceHTML;
+  const bodyMatch = invoiceHTML.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const content = bodyMatch ? bodyMatch[1] : invoiceHTML;
+  document.getElementById("invoice-content").innerHTML = content;
+  document.getElementById("invoice-overlay").style.display = "block";
   document.getElementById("invoice-overlay").classList.add("open");
 }
 
@@ -1632,7 +1637,6 @@ function closeInvoice(e) {
 }
 
 function printInvoice() {
-  const frame = document.getElementById("invoice-frame");
   frame.contentWindow.print();
 }
 
