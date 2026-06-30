@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v7 -->
+<!DOCTYPE html><!-- v8 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -247,7 +247,7 @@
     <span id="logo-icon">🐘</span>
     <div>
       <div id="logo-title">Enjojo Lodge</div>
-      <div id="logo-sub">Booking Planner · v7</div>
+      <div id="logo-sub">Booking Planner · v8</div>
     </div>
   </div>
   <div id="controls">
@@ -955,6 +955,8 @@ async function saveBooking() {
     board:         document.getElementById("f-board").value,
     notes:         document.getElementById("f-notes").value,
     rooms:         [...formRooms],
+    quoteLines:    JSON.parse(JSON.stringify(quoteLines || [])),
+    quoteType:     priceType || "rack",
     checkIn:       document.getElementById("f-checkin").value,
     checkOut:      document.getElementById("f-checkout").value,
     pfInvoice:     document.getElementById("f-invoice").value||null,
