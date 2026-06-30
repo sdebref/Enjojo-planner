@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v8 -->
+<!DOCTYPE html><!-- v9 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -247,7 +247,7 @@
     <span id="logo-icon">🐘</span>
     <div>
       <div id="logo-title">Enjojo Lodge</div>
-      <div id="logo-sub">Booking Planner · v8</div>
+      <div id="logo-sub">Booking Planner · v9</div>
     </div>
   </div>
   <div id="controls">
@@ -1323,7 +1323,19 @@ function switchTab(name) {
     p.classList.toggle("active", p.id === "tab-"+name);
   });
   if (name === "rooms") renderPanel();
-  if (name === "finance") { renderQuoteLines(); calcPrice(); }
+  if (name === "finance") {
+    renderQuoteLines(); calcPrice();
+    // Auto-assign invoice number if empty
+    const invField = document.getElementById("f-invoice");
+    if (invField && !invField.value) {
+      invField.value = getNextInvoiceNumber();
+    }
+    // Auto-fill invoice date if empty
+    const invDate = document.getElementById("f-invoice-date");
+    if (invDate && !invDate.value) {
+      invDate.value = new Date().toISOString().slice(0,10);
+    }
+  }
   if (name === "attachments") { renderAttachments(); }
 }
 
