@@ -1624,9 +1624,11 @@ function generateInvoice() {
 </body>
 </html>`;
 
-  const bodyMatch = invoiceHTML.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-  const content = bodyMatch ? bodyMatch[1] : invoiceHTML;
-  document.getElementById("invoice-content").innerHTML = content;
+  const styleMatch = invoiceHTML.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const bodyMatch  = invoiceHTML.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const styleTag   = styleMatch ? '<style>' + styleMatch[1] + '</style>' : '';
+  const content    = bodyMatch  ? bodyMatch[1] : invoiceHTML;
+  document.getElementById("invoice-content").innerHTML = styleTag + content;
   document.getElementById("invoice-overlay").style.display = "block";
   document.getElementById("invoice-overlay").classList.add("open");
 }
