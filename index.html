@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v6 -->
+<!DOCTYPE html><!-- v7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -247,7 +247,7 @@
     <span id="logo-icon">🐘</span>
     <div>
       <div id="logo-title">Enjojo Lodge</div>
-      <div id="logo-sub">Booking Planner · v6</div>
+      <div id="logo-sub">Booking Planner · v7</div>
     </div>
   </div>
   <div id="controls">
@@ -598,7 +598,7 @@ async function loadBookings() {
   const { data, error } = await sb.from("bookings").select("*").order("check_in");
   if (error) { showToast("Error loading bookings", true); setSyncing(false); return; }
   bookings = data.map(fromDb);
-  console.log("Sample booking quoteLines:", bookings[0]?.quoteLines);
+  console.log("All bookings quoteLines:", bookings.map(b => ({id:b.id, op:b.operator, ql:b.quoteLines})));
   setSyncing(false);
   render();
   hideLoading();
@@ -855,7 +855,7 @@ function openEdit(b) {
   document.getElementById("f-balance-date").value   = b.balanceDate  || "";
   document.getElementById("f-internal-notes").value = b.internalNotes|| "";
   // Load saved quote lines
-  console.log("openEdit quoteLines from b:", b.quoteLines);
+  console.log("openEdit b:", JSON.stringify({id:b.id, op:b.operator, ql:b.quoteLines, qt:b.quoteType}));
   quoteLines = b.quoteLines ? JSON.parse(JSON.stringify(b.quoteLines)) : [];
   console.log("quoteLines set to:", quoteLines);
   priceType  = b.quoteType  || "rack";
